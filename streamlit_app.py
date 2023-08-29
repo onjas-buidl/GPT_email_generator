@@ -1,7 +1,8 @@
 # gpt3 professional email generator by stefanrmmr - version June 2022
 
 import os
-import openai
+from langchain.chat_models import ChatOpenAI
+from langchain.schema import AIMessage, HumanMessage, SystemMessage
 import streamlit as st
 
 # DESIGN implement changes to the standard streamlit UI/UX
@@ -32,28 +33,27 @@ hide_streamlit_footer = """<style>#MainMenu {visibility: hidden;}
 st.markdown(hide_streamlit_footer, unsafe_allow_html=True)
 
 
-# Connect to OpenAI GPT-3, fetch API key from Streamlit secrets
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# Connect to LangChain GPT-4, fetch API key from Streamlit secrets
+llm = ChatOpenAI(model_name='gpt-4')
+os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
 
 
 def gen_mail_contents(email_contents):
 
-    # iterate through all seperate topics
+    # iterate through all separate topics
     for topic in range(len(email_contents)):
         input_text = email_contents[topic]
-        rephrased_content = openai.Completion.create(
-            engine="text-davinci-002",
-            prompt=f"Rewrite the text to be elaborate and polite.\nAbbreviations need to be replaced.\nText: {input_text}\nRewritten text:",
-            # prompt=f"Rewrite the text to sound professional, elaborate and polite.\nText: {input_text}\nRewritten text:",
-            temperature=0.8,
-            max_tokens=len(input_text)*3,
-            top_p=0.8,
-            best_of=2,
-            frequency_penalty=0.0,
-            presence_penalty=0.0)
+        messages = [
+            SystemMessage(content="Rewrite the text to be elaborate and polite."),
+            SystemMessage(content="Abbreviations need to be replaced."),
+            HumanMessage(content=f"Text: {input_text}"),
+            SystemMessage(content="Rewritten text:")
+        ]
+        response = llm(messages)
+        rephrased_content = response.content
 
         # replace existing topic text with updated
-        email_contents[topic] = rephrased_content.get("choices")[0]['text']
+        email_contents[topic] = rephrased_content
     return email_contents
 
 
@@ -67,24 +67,22 @@ def gen_mail_format(sender, recipient, style, email_contents):
         contents_str = contents_str + f"\nContent{topic+1}: " + email_contents[topic]
         contents_length += len(email_contents[topic])  # calc total chars
 
-    email_final_text = openai.Completion.create(
-        engine="text-davinci-002",
-        prompt=f"Write a professional email sounds {style} and includes Content1 and Content2 in that order.\n\nSender: {sender}\nRecipient: {recipient} {contents_str}\n\nEmail Text:",
-        # prompt=f"Write a professional sounding email text that includes all of the following contents separately.\nThe text needs to be written to adhere to the specified writing styles and abbreviations need to be replaced.\n\nSender: {sender}\nRecipient: {recipient} {contents_str}\nWriting Styles: motivated, formal\n\nEmail Text:",
-        temperature=0.8,
-        max_tokens=contents_length*2,
-        top_p=0.8,
-        best_of=2,
-        frequency_penalty=0.0,
-        presence_penalty=0.0)
+    messages = [
+        SystemMessage(content=f"Write a professional email sounds {style} and includes Content1 and Content2 in that order."),
+        SystemMessage(content=f"Sender: {sender}"),
+        SystemMessage(content=f"Recipient: {recipient} {contents_str}"),
+        SystemMessage(content="Email Text:")
+    ]
+    response = llm(messages)
+    email_final_text = response.content
 
-    return email_final_text.get("choices")[0]['text']
+    return email_final_text
 
 
 def main_gpt3emailgen():
 
     st.image('img/image_banner.png')  # TITLE and Creator information
-    st.markdown('Generate professional sounding emails based on your direct comments - powered by Artificial Intelligence (OpenAI GPT-3) Implemented by '
+    st.markdown('Generate professional sounding emails based on your direct comments - powered by Artificial Intelligence (LangChain GPT-4) Implemented by '
         '[stefanrmmr](https://www.linkedin.com/in/stefanrmmr/) - '
         'view project source code on '
         '[GitHub](https://github.com/stefanrmmr/gpt3_email_generator)')
@@ -93,7 +91,7 @@ def main_gpt3emailgen():
     st.subheader('\nWhat is your email all about?\n')
     with st.expander("SECTION - Email Input", expanded=True):
 
-        input_c1 = st.text_input('Enter email contents down below! (currently 2x seperate topics supported)', 'topic 1')
+        input_c1 = st.text_input('Enter email contents down below! (currently 2x separate topics supported)', 'topic 1')
         input_c2 = st.text_input('', 'topic 2 (optional)')
 
         email_text = ""  # initialize columns variables
@@ -133,7 +131,7 @@ def main_gpt3emailgen():
         st.write('\n')  # add spacing
         st.subheader('\nYou sound incredibly professional!\n')
         with st.expander("SECTION - Email Output", expanded=True):
-            st.markdown(email_text)  #output the results
+            st.markdown(email_text)  # output the results
 
 
 if __name__ == '__main__':
